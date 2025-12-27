@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>HighLite Item Quick Reference</title>
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;margin:0;background:#0b0f14;color:#e6edf3}
+    header{position:sticky;top:0;background:#0b0f14;border-bottom:1px solid #1f2a37;padding:16px;z-index:10}
+    .row{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+    input{flex:1;min-width:240px;padding:12px 14px;border-radius:10px;border:1px solid #233044;background:#0f1620;color:#e6edf3}
+    button{padding:12px 14px;border-radius:10px;border:1px solid #233044;background:#111b27;color:#e6edf3;cursor:pointer}
+    main{display:grid;grid-template-columns:420px 1fr;gap:16px;padding:16px}
+    @media (max-width: 980px){main{grid-template-columns:1fr}}
+    .panel{border:1px solid #1f2a37;background:#0f1620;border-radius:14px;overflow:hidden}
+    .panel h2{margin:0;padding:14px 16px;border-bottom:1px solid #1f2a37;font-size:14px;letter-spacing:.04em;text-transform:uppercase;color:#9fb0c0}
+    .list{max-height:75vh;overflow:auto}
+    .item{padding:12px 14px;border-bottom:1px solid #17202b;cursor:pointer}
+    .item:hover{background:#101c2a}
+    .item .name{font-weight:700}
+    .item .meta{opacity:.75;font-size:12px;margin-top:4px}
+    .content{padding:16px}
+    .pill{display:inline-block;border:1px solid #243244;border-radius:999px;padding:4px 10px;margin:4px 6px 0 0;font-size:12px;color:#b9c7d6}
+    pre{background:#0b0f14;border:1px solid #1f2a37;border-radius:12px;padding:12px;overflow:auto;max-height:45vh}
+    .muted{opacity:.8}
+    .warn{color:#ffcc66}
+  </style>
+</head>
+<body>
+<header>
+  <div class="row">
+    <input id="q" placeholder="Search items… (name / id / description)" />
+    <button id="reload">Reload</button>
+    <span id="status" class="muted"></span>
+  </div>
+</header>
+
+<main>
+  <section class="panel">
+    <h2>Results</h2>
+    <div id="list" class="list"></div>
+  </section>
+
+  <section class="panel">
+    <h2>Item</h2>
+    <div id="detail" class="content muted">Click an item on the left.</div>
+  </section>
+</main>
+
+<script>
+  // Put your JSON file in the same repo folder as this HTML:
+  // - items_index.json (recommended; smaller/faster)
+  // - or items.json (full raw)
+  const DATA_URL = './items_index.json';
+
+  const elQ = document.getElementById('q');
+  const elList = document.getElementById('list');
+  const elDetail = document.getElementById('detail');
+  const elStatus = document.getElementById('status');
+
+  let items = [];
+  let filtered = [];
+
+  function pill(text){ return `<span class="pill">${escapeHtml(text)}</span>`; }
+
+  function escapeHtml(s){
+    return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+  function flags(it){
+    const f = [];
+    if (it.tradeable) f.push('Tradeable');
+    if (it.stackable) f.push('Stackable');
+    if (it.members) f.push('Members');
+    if (it.equippable) f.push('Equippable');
+    if (it.edible) f.push('Edible');
+    return f;
+  }
+
+  function renderList(list){
+    elList.innerHTML = list.map(it => `
+      <div class="item" data-id="${it.id}">
+        <div class="name">${escapeHtml(it.nameCapitalized || it.name || ('Item ' + it.id))}</div>
+        <div class="meta">ID: ${it.id} • Value: ${escapeHtml(it.cost)} • Weight: ${escapeHtml(it.weight)}</div>
+      </div>
+    `).join('') || `<div class="item muted">No results.</div>`;
+
+    elList.querySelectorAll('.item[data-id]').forEach(row => {
+      row.addEventListener('click', () => showItem(Number(row.dataset.id)));
+    });
+  }
+
+  function showItem(id){
+    const it = items.find(x => Number(x.id) === Number(id));
+    if (!it) return;
+
+    const title = it.nameCapitalized || it.name || ('Item ' + it.id);
+    const f = flags(it);
+
+    elDetail.innerHTML = `
+      <h1 style="margin:0 0 10px 0;font-size:22px">${escapeHtml(title)}</h1>
+      <div class="muted" style="margin-bottom:10px">${escapeHtml(it.description || '')}</div>
+      <div style="margin-bottom:12px">
+        ${pill('ID: ' + it.id)}
+        ${pill('Value: ' + (it.cost ?? '—'))}
+        ${pill('Weight: ' + (it.weight ?? '—'))}
+        ${it.weaponSpeed != null ? pill('WeaponSpeed: ' + it.weaponSpeed) : ''}
+        ${it.equipmentType ? pill('EquipType: ' + it.equipmentType) : ''}
+      </div>
+      <div style="margin-bottom:10px">
+        ${f.map(pill).join('') || '<span class="muted">No flags.</span>'}
+      </div>
+      <h3 style="margin:14px 0 8px 0;font-size:14px;letter-spacing:.04em;text-transform:uppercase;color:#9fb0c0">Inventory Actions</h3>
+      <div class="muted">${escapeHtml((it.inventoryActions || []).join(', ') || 'None')}</div>
+
+      <h3 style="margin:14px 0 8px 0;font-size:14px;letter-spacing:.04em;text-transform:uppercase;color:#9fb0c0">Raw (if present)</h3>
+      <div class="muted">${it.raw ? '' : '<div class="warn">This is items_index.json (compact). Use items.json if you want raw per item.</div>'}</div>
+      ${it.raw ? `<pre>${escapeHtml(JSON.stringify(it.raw, null, 2))}</pre>` : ''}
+    `;
+  }
+
+  function applyFilter(){
+    const q = elQ.value.trim().toLowerCase();
+    if (!q) {
+      filtered = items.slice(0, 500); // keep initial render snappy
+      renderList(filtered);
+      elStatus.textContent = `${items.length} items loaded`;
+      return;
+    }
+
+    // Simple fast search (no libs): name/id/description substring match
+    const out = [];
+    for (const it of items) {
+      const hay = `${it.id} ${(it.name||'')} ${(it.nameCapitalized||'')} ${(it.description||'')}`.toLowerCase();
+      if (hay.includes(q)) out.push(it);
+      if (out.length >= 1000) break; // avoid huge DOM
+    }
+    filtered = out;
+    renderList(filtered);
+    elStatus.textContent = `${out.length} results`;
+  }
+
+  async function load(){
+    elStatus.textContent = 'Loading…';
+    const res = await fetch(DATA_URL, { cache: 'no-store' });
+    if (!res.ok) throw new Error(`Failed to fetch ${DATA_URL}: ${res.status}`);
+    items = await res.json();
+    items.sort((a,b) => (a.id ?? 0) - (b.id ?? 0));
+    elStatus.textContent = `${items.length} items loaded`;
+    applyFilter();
+  }
+
+  document.getElementById('reload').addEventListener('click', load);
+  elQ.addEventListener('input', () => {
+    // tiny debounce
+    clearTimeout(window.__t);
+    window.__t = setTimeout(applyFilter, 80);
+  });
+
+  load().catch(err => {
+    elStatus.textContent = 'Load failed';
+    elDetail.innerHTML = `<div class="warn">Error:</div><pre>${escapeHtml(err.stack || String(err))}</pre>`;
+  });
+</script>
+</body>
+</html>
