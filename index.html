@@ -3,164 +3,115 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>HighLite Item Quick Reference</title>
+  <title>HighLite QuickRef</title>
   <style>
     body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;margin:0;background:#0b0f14;color:#e6edf3}
-    header{position:sticky;top:0;background:#0b0f14;border-bottom:1px solid #1f2a37;padding:16px;z-index:10}
+    header{position:sticky;top:0;background:#0b0f14;border-bottom:1px solid #1f2a37;padding:18px 16px;z-index:10}
     .row{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
-    input{flex:1;min-width:240px;padding:12px 14px;border-radius:10px;border:1px solid #233044;background:#0f1620;color:#e6edf3}
-    button{padding:12px 14px;border-radius:10px;border:1px solid #233044;background:#111b27;color:#e6edf3;cursor:pointer}
-    main{display:grid;grid-template-columns:420px 1fr;gap:16px;padding:16px}
-    @media (max-width: 980px){main{grid-template-columns:1fr}}
-    .panel{border:1px solid #1f2a37;background:#0f1620;border-radius:14px;overflow:hidden}
+    .brand{display:flex;flex-direction:column;gap:4px}
+    .brand h1{margin:0;font-size:18px;letter-spacing:.02em}
+    .brand .sub{opacity:.8;font-size:13px}
+    main{padding:16px;max-width:1100px;margin:0 auto}
+    .grid{display:grid;grid-template-columns:repeat(12,1fr);gap:16px}
+    @media (max-width: 980px){.grid{grid-template-columns:1fr}}
+    .panel{border:1px solid #1f2a37;background:#0f1620;border-radius:16px;overflow:hidden}
     .panel h2{margin:0;padding:14px 16px;border-bottom:1px solid #1f2a37;font-size:14px;letter-spacing:.04em;text-transform:uppercase;color:#9fb0c0}
-    .list{max-height:75vh;overflow:auto}
-    .item{padding:12px 14px;border-bottom:1px solid #17202b;cursor:pointer}
-    .item:hover{background:#101c2a}
-    .item .name{font-weight:700}
-    .item .meta{opacity:.75;font-size:12px;margin-top:4px}
     .content{padding:16px}
-    .pill{display:inline-block;border:1px solid #243244;border-radius:999px;padding:4px 10px;margin:4px 6px 0 0;font-size:12px;color:#b9c7d6}
-    pre{background:#0b0f14;border:1px solid #1f2a37;border-radius:12px;padding:12px;overflow:auto;max-height:45vh}
+    .card{
+      display:block;
+      border:1px solid #1f2a37;
+      background:linear-gradient(180deg,#0f1620 0%, #0c121a 100%);
+      border-radius:16px;
+      padding:16px;
+      text-decoration:none;
+      color:#e6edf3;
+      transition:transform .08s ease, border-color .08s ease, background .08s ease;
+    }
+    .card:hover{transform:translateY(-1px);border-color:#2f3f55;background:linear-gradient(180deg,#101b28 0%, #0c121a 100%)}
+    .card .title{font-weight:800;font-size:18px;margin:0 0 6px 0}
+    .card .desc{opacity:.85;margin:0 0 12px 0;line-height:1.35}
+    .pill{display:inline-block;border:1px solid #243244;border-radius:999px;padding:4px 10px;margin:6px 6px 0 0;font-size:12px;color:#b9c7d6}
     .muted{opacity:.8}
     .warn{color:#ffcc66}
+    footer{padding:16px;opacity:.7;font-size:12px}
+    .col-8{grid-column:span 8}
+    .col-4{grid-column:span 4}
+    @media (max-width: 980px){.col-8,.col-4{grid-column:span 12}}
+    code{background:#0b0f14;border:1px solid #1f2a37;border-radius:10px;padding:2px 8px}
   </style>
 </head>
 <body>
-<header>
-  <div class="row">
-    <input id="q" placeholder="Search items… (name / id / description)" />
-    <button id="reload">Reload</button>
-    <span id="status" class="muted"></span>
-  </div>
-</header>
-
-<main>
-  <section class="panel">
-    <h2>Results</h2>
-    <div id="list" class="list"></div>
-  </section>
-
-  <section class="panel">
-    <h2>Item</h2>
-    <div id="detail" class="content muted">Click an item on the left.</div>
-  </section>
-</main>
-
-<script>
-  // Put your JSON file in the same repo folder as this HTML:
-  // - items_index.json (recommended; smaller/faster)
-  // - or items.json (full raw)
-  const DATA_URL = './items.json';
-
-  const elQ = document.getElementById('q');
-  const elList = document.getElementById('list');
-  const elDetail = document.getElementById('detail');
-  const elStatus = document.getElementById('status');
-
-  let items = [];
-  let filtered = [];
-
-  function pill(text){ return `<span class="pill">${escapeHtml(text)}</span>`; }
-
-  function escapeHtml(s){
-    return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-  }
-
-  function flags(it){
-    const f = [];
-    if (it.tradeable) f.push('Tradeable');
-    if (it.stackable) f.push('Stackable');
-    if (it.members) f.push('Members');
-    if (it.equippable) f.push('Equippable');
-    if (it.edible) f.push('Edible');
-    return f;
-  }
-
-  function renderList(list){
-    elList.innerHTML = list.map(it => `
-      <div class="item" data-id="${it.id}">
-        <div class="name">${escapeHtml(it.nameCapitalized || it.name || ('Item ' + it.id))}</div>
-        <div class="meta">ID: ${it.id} • Value: ${escapeHtml(it.cost)} • Weight: ${escapeHtml(it.weight)}</div>
+  <header>
+    <div class="row">
+      <div class="brand">
+        <h1>HighLite QuickRef</h1>
+        <div class="sub">Fast, searchable reference pages built from your dumps.</div>
       </div>
-    `).join('') || `<div class="item muted">No results.</div>`;
+    </div>
+  </header>
 
-    elList.querySelectorAll('.item[data-id]').forEach(row => {
-      row.addEventListener('click', () => showItem(Number(row.dataset.id)));
-    });
-  }
+  <main>
+    <div class="grid">
+      <section class="panel col-8">
+        <h2>Sections</h2>
+        <div class="content">
+          <a class="card" href="./items/">
+            <div class="title">Items</div>
+            <p class="desc">Search item definitions, values, flags, inventory actions, and optional raw JSON.</p>
+            <span class="pill">Path: /QuickRef/items/</span>
+            <span class="pill">Data: items.json or items_index.json</span>
+          </a>
 
-  function showItem(id){
-    const it = items.find(x => Number(x.id) === Number(id));
-    if (!it) return;
+          <div style="height:12px"></div>
 
-    const title = it.nameCapitalized || it.name || ('Item ' + it.id);
-    const f = flags(it);
+          <a class="card" href="./npcs/">
+            <div class="title">NPCs</div>
+            <p class="desc">Search NPC definitions (name, id, stats, drops, behaviors) — when you add the dump.</p>
+            <span class="pill">Path: /QuickRef/npcs/</span>
+            <span class="pill">Coming soon</span>
+          </a>
 
-    elDetail.innerHTML = `
-      <h1 style="margin:0 0 10px 0;font-size:22px">${escapeHtml(title)}</h1>
-      <div class="muted" style="margin-bottom:10px">${escapeHtml(it.description || '')}</div>
-      <div style="margin-bottom:12px">
-        ${pill('ID: ' + it.id)}
-        ${pill('Value: ' + (it.cost ?? '—'))}
-        ${pill('Weight: ' + (it.weight ?? '—'))}
-        ${it.weaponSpeed != null ? pill('WeaponSpeed: ' + it.weaponSpeed) : ''}
-        ${it.equipmentType ? pill('EquipType: ' + it.equipmentType) : ''}
-      </div>
-      <div style="margin-bottom:10px">
-        ${f.map(pill).join('') || '<span class="muted">No flags.</span>'}
-      </div>
-      <h3 style="margin:14px 0 8px 0;font-size:14px;letter-spacing:.04em;text-transform:uppercase;color:#9fb0c0">Inventory Actions</h3>
-      <div class="muted">${escapeHtml((it.inventoryActions || []).join(', ') || 'None')}</div>
+          <!-- Add more sections the same way:
+          <div style="height:12px"></div>
+          <a class="card" href="./objects/">
+            <div class="title">Objects</div>
+            <p class="desc">World objects, interactions, resource nodes, etc.</p>
+            <span class="pill">Path: /QuickRef/objects/</span>
+          </a>
+          -->
+        </div>
+      </section>
 
-      <h3 style="margin:14px 0 8px 0;font-size:14px;letter-spacing:.04em;text-transform:uppercase;color:#9fb0c0">Raw (if present)</h3>
-      <div class="muted">${it.raw ? '' : '<div class="warn">This is items_index.json (compact). Use items.json if you want raw per item.</div>'}</div>
-      ${it.raw ? `<pre>${escapeHtml(JSON.stringify(it.raw, null, 2))}</pre>` : ''}
-    `;
-  }
+      <aside class="panel col-4">
+        <h2>Repo layout</h2>
+        <div class="content muted">
+          <div style="margin-bottom:10px">Recommended structure:</div>
+          <pre style="background:#0b0f14;border:1px solid #1f2a37;border-radius:12px;padding:12px;overflow:auto;margin:0">
+QuickRef/
+  index.html
+  items/
+    index.html
+    items_index.json   (or items.json)
+  npcs/
+    index.html
+    npcs_index.json    (or npcs.json)
+          </pre>
 
-  function applyFilter(){
-    const q = elQ.value.trim().toLowerCase();
-    if (!q) {
-      filtered = items.slice(0, 500); // keep initial render snappy
-      renderList(filtered);
-      elStatus.textContent = `${items.length} items loaded`;
-      return;
-    }
+          <div style="margin-top:12px">
+            <span class="warn">Note:</span> GitHub Pages won’t auto-list folders, so this landing page is the “directory.”
+          </div>
 
-    // Simple fast search (no libs): name/id/description substring match
-    const out = [];
-    for (const it of items) {
-      const hay = `${it.id} ${(it.name||'')} ${(it.nameCapitalized||'')} ${(it.description||'')}`.toLowerCase();
-      if (hay.includes(q)) out.push(it);
-      if (out.length >= 1000) break; // avoid huge DOM
-    }
-    filtered = out;
-    renderList(filtered);
-    elStatus.textContent = `${out.length} results`;
-  }
+          <div style="margin-top:12px">
+            Tip: if your items page uses <code>const DATA_URL = './items.json'</code>,
+            make sure the JSON file sits in the same folder as that page.
+          </div>
+        </div>
+      </aside>
+    </div>
 
-  async function load(){
-    elStatus.textContent = 'Loading…';
-    const res = await fetch(DATA_URL, { cache: 'no-store' });
-    if (!res.ok) throw new Error(`Failed to fetch ${DATA_URL}: ${res.status}`);
-    items = await res.json();
-    items.sort((a,b) => (a.id ?? 0) - (b.id ?? 0));
-    elStatus.textContent = `${items.length} items loaded`;
-    applyFilter();
-  }
-
-  document.getElementById('reload').addEventListener('click', load);
-  elQ.addEventListener('input', () => {
-    // tiny debounce
-    clearTimeout(window.__t);
-    window.__t = setTimeout(applyFilter, 80);
-  });
-
-  load().catch(err => {
-    elStatus.textContent = 'Load failed';
-    elDetail.innerHTML = `<div class="warn">Error:</div><pre>${escapeHtml(err.stack || String(err))}</pre>`;
-  });
-</script>
+    <footer>
+      <div>QuickRef is static — no server required. Perfect for GitHub Pages.</div>
+    </footer>
+  </main>
 </body>
 </html>
